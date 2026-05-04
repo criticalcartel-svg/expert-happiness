@@ -1,3 +1,5 @@
+import { createSlice } from "@reduxjs/toolkit";
+
 const accountInitialState = {
   balance: 0,
   loan: 0,
@@ -5,7 +7,71 @@ const accountInitialState = {
   isLoading: false,
 };
 
-export default function accountReducer(state = accountInitialState, action) {
+const accountSlice = createSlice({
+  name: "account",
+  initialState: accountInitialState,
+  reducers: {
+    deposit(state, action) {
+      if (action.payload <= 0) return;
+
+      state.balance += action.payload;
+      state.isLoading = false;
+    },
+    withdraw(state, action) {
+      if (state.balance < action.payload || action.payload < 1) return;
+
+      state.balance -= action.payload;
+    },
+
+    requestLoan: {
+      prepare(amount, purpose) {
+        return {
+          payload: { amount, purpose },
+        };
+      },
+
+      reducer(state, action) {
+        if (state.loan < 0 || action.payload < 1) return;
+
+        state.loan = action.payload.amount;
+        state.loanPurpose = action.payload.purpose;
+        state.balance += action.payload.amount;
+      },
+    },
+
+    payLoan(state) {
+      if (state.balance >= state.loan) {
+        state.balance -= state.loan;
+        state.loan = 0;
+        state.loanPurpose = "";
+      }
+    },
+
+    convertingCurrency(state) {
+      state.isLoading = true;
+    },
+  },
+});
+
+export default accountSlice.reducer;
+export const { withdraw, requestLoan, payLoan } = accountSlice.actions;
+
+export function deposit(amount, currency) {
+  if (currency == "USD") return { type: "account/deposit", payload: amount };
+
+  return async function convertCurrency(dispatch) {
+    dispatch({ type: "account/convertingCurrency" });
+
+    const api = "https://api.frankfurter.dev";
+    const res = await fetch(`${api}/v2/rate/${"USD"}/${currency}`);
+    const data = await res.json();
+    const converted = await Number((amount * data.rate).toFixed(2));
+
+    dispatch({ type: "account/deposit", payload: converted });
+  };
+}
+
+/* export default function accountReducer(state = accountInitialState, action) {
   switch (action.type) {
     case "account/deposit":
       if (action.payload <= 0) return state;
@@ -72,4 +138,4 @@ export function requestLoan(amount, purpose) {
 
 export function payLoan() {
   return { type: "account/payLoan" };
-}
+} */
